@@ -13,6 +13,18 @@ pipeline {
             }
         }
 
+        stage('Kubernetes connection test') {
+            steps {
+                withKubeConfig([credentialsId: 'kubeconfig-diploma']) {
+                    sh '''
+                        echo "Checking Kubernetes connection..."
+                        kubectl get nodes
+                        kubectl get pods -n diploma
+                    '''
+                }
+            }
+}
+
         stage('Validate') {
             steps {
                 sh '''
