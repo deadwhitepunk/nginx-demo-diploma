@@ -65,14 +65,20 @@ pipeline {
                 }
             }
         }
-    }
 
-    post {
-        success {
-            echo 'YEEEP! Docker image successfully published!'
-        }
-        failure {
-            echo 'AWWW! Pipeline failed!'
-        }
+        stage('Deploy to Kubernetes') {
+            steps {
+                withKubeConfig([credentialsId: 'kubeconfig-diploma']) {
+                    sh '''
+                        kubectl set image deployment/nginx-test \
+                        nginx=zhelonkindd/nginx-demo:${BUILD_NUMBER} \
+                        -n diploma
+
+                        kubectl rollout status deployment/nginx-test \
+                        -n diploma
+                    '''
+                }
+            }
+}
     }
 }
