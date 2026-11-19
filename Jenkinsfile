@@ -13,24 +13,21 @@ pipeline {
             }
         }
 
-        stage('Kubernetes connection test') {
+        stage('Prepare') {
             steps {
-                withKubeConfig([credentialsId: 'kubeconfig-diploma']) {
-                    sh '''
-                        kubectl get pods -n diploma
-                        kubectl get deployments -n diploma
-                        
-                    '''
+                script {
+                    env.IMAGE_TAG = env.TAG_NAME ?: env.BUILD_NUMBER
+                    echo "Docker image: ${env.DOCKER_IMAGE}:${env.IMAGE_TAG}"
                 }
             }
-}
+        }
 
         stage('Validate') {
             steps {
                 sh '''
                     test -f Dockerfile
                     test -f index.html
-                    echo "Files is ok"
+                    echo "Files are OK"
                 '''
             }
         }
@@ -38,8 +35,7 @@ pipeline {
         stage('Build') {
             steps {
                 sh '''
-                    docker build -t ${DOCKER_IMAGE}:${BUILD_NUMBER} .
-                    docker tag ${DOCKER_IMAGE}:${BUILD_NUMBER} ${DOCKER_IMAGE}:latest
+                    docker build -t ${DOCKER_IMAGE}:${IMAGE_TAG} .
                 '''
             }
         }
@@ -57,8 +53,12 @@ pipeline {
                         echo "$DOCKER_TOKEN" | docker login \
                             -u "$DOCKER_USER" --password-stdin
 
-                        docker push ${DOCKER_IMAGE}:${BUILD_NUMBER}
-                        docker push ${DOCKER_IMAGE}:latest
+                        docker push ${DOCKER_IMAGE}:${IMAGE_TAG}
+
+                        if [ -z "${TAG_NAME:-}" ]; then
+                            docker tag ${DOCKER_IMAGE}:${IMAGE_TAG} ${DOCKER_IMAGE}:latest
+                            docker push ${DOCKER_IMAGE}:latest
+                        fi
 
                         docker logout
                     '''
@@ -67,18 +67,21 @@ pipeline {
         }
 
         stage('Deploy to Kubernetes') {
+            when {
+                buildingTag()
+            }
             steps {
                 withKubeConfig([credentialsId: 'kubeconfig-diploma']) {
                     sh '''
                         kubectl set image deployment/nginx-test \
-                        nginx=zhelonkindd/nginx-demo:${BUILD_NUMBER} \
-                        -n diploma
+                            nginx=${DOCKER_IMAGE}:${IMAGE_TAG} \
+                            -n diploma
 
                         kubectl rollout status deployment/nginx-test \
-                        -n diploma
+                            -n diploma --timeout=180s
                     '''
                 }
             }
-}
+        }
     }
 }
