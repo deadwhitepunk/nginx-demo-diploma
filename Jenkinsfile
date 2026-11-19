@@ -17,9 +17,9 @@ pipeline {
             steps {
                 withKubeConfig([credentialsId: 'kubeconfig-diploma']) {
                     sh '''
-                        echo "Checking Kubernetes connection..."
-                        kubectl get nodes
                         kubectl get pods -n diploma
+                        kubectl get deployments -n diploma
+                        
                     '''
                 }
             }
